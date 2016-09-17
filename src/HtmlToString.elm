@@ -72,8 +72,19 @@ nodeRecordToString {tag, children, facts} =
                         |> Just
 
         classes =
-            Dict.get "className" facts.stringOthers
-                |> Maybe.map (\name -> "class=\"" ++ name ++ "\"")
+            Maybe.oneOf
+                [   Dict.get "className" facts.stringOthers
+                        |> Maybe.map (\name -> "class=\"" ++ name ++ "\"")
+                ,   facts.attributes
+                        `Maybe.andThen`
+                            (\attr ->
+                                 Json.Decode.decodeValue
+                                     (Json.Decode.at ["class"] Json.Decode.string)
+                                     attr
+                                |> Result.toMaybe
+                            )
+                        |> Maybe.map (\name -> "class=\"" ++ name ++ "\"")
+                ]
 
         stringOthers =
             Dict.filter (\k v -> k /= "className") facts.stringOthers
