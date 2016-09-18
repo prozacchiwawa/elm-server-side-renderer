@@ -5,6 +5,7 @@ module InternalTypes
         , NodeRecord
         , Facts
         , decodeNodeType
+        , decodeAttributeStringPairs
         )
 
 -- where
@@ -139,3 +140,19 @@ decodeFacts =
         (Json.Decode.maybe (attributeNamespaceKey := Json.Decode.value))
         (decodeOthers Json.Decode.string)
         (decodeOthers Json.Decode.bool)
+
+
+decodeAttributeStringPairs : Json.Decode.Decoder (List (String, String))
+decodeAttributeStringPairs =
+    (Json.Decode.keyValuePairs
+         (Json.Decode.maybe Json.Decode.string)
+    )
+    |> Json.Decode.map
+       (List.filterMap
+            (\(k,v) ->
+                if k /= "class" && k /= "style" then
+                    v |> Maybe.map (\value -> (k,value))
+                else
+                    Nothing
+            )
+       )

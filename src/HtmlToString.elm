@@ -74,7 +74,6 @@ nodeRecordToString {tag, children, facts} =
         classes =
             Maybe.oneOf
                 [   Dict.get "className" facts.stringOthers
-                        |> Maybe.map (\name -> "class=\"" ++ name ++ "\"")
                 ,   facts.attributes
                         `Maybe.andThen`
                             (\attr ->
@@ -87,8 +86,13 @@ nodeRecordToString {tag, children, facts} =
                 ]
 
         stringOthers =
-            Dict.filter (\k v -> k /= "className") facts.stringOthers
-                |> Dict.toList
+                (List.concat [
+                    Dict.filter (\k v -> k /= "className") facts.stringOthers
+                    |> Dict.toList
+                ,   Maybe.map (Json.Decode.decodeValue decodeAttributeStringPairs) facts.attributes
+                    |> Maybe.map (Result.withDefault [])
+                    |> Maybe.withDefault []
+                ])
                 |> List.map (\(k, v) -> k ++ "=\"" ++ v ++ "\"")
                 |> String.join " "
                 |> Just
