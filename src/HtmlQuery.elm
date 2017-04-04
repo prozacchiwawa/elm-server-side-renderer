@@ -1,4 +1,4 @@
-module Query
+module HtmlQuery
     exposing
         ( query
         , queryById
@@ -6,15 +6,17 @@ module Query
         , queryByClassList
         , queryByTagname
         , queryByAttribute
+        , queryByBoolAttribute
+        , queryAll
         , queryInNode
         , Selector(..)
         )
 
-import Html exposing (Html)
-import HtmlToString exposing (nodeTypeFromHtml)
-import InternalTypes exposing (..)
 import Dict
 import String
+import Html exposing (Html)
+import HtmlToString exposing (nodeTypeFromHtml)
+import ServerSide.InternalTypes exposing (..)
 
 
 {-| Selectors to query a Html element
@@ -25,6 +27,9 @@ type Selector
     | ClassList (List String)
     | Tag String
     | Attribute String String
+    | BoolAttribute String Bool
+    | ContainsText String
+    | Multiple (List Selector)
 
 
 {-| Query for a node with a given tag in a Html element
@@ -62,11 +67,25 @@ queryByAttribute key value =
     query (Attribute key value)
 
 
+{-| Query for a node with a given attribute in a Html element
+-}
+queryByBoolAttribute : String -> Bool -> Html msg -> List NodeType
+queryByBoolAttribute key value =
+    query (BoolAttribute key value)
+
+
 {-| Query a Html element using a selector
 -}
 query : Selector -> Html msg -> List NodeType
 query selector =
     nodeTypeFromHtml >> queryInNode selector
+
+
+{-| Query to ensure a html node has all selectors given
+-}
+queryAll : List Selector -> Html msg -> List NodeType
+queryAll selectors =
+    query (Multiple selectors)
 
 
 {-| Query a Html node using a selector
@@ -86,6 +105,17 @@ queryInNode selector node =
                     [ node ] ++ (mapChildren record.children)
                 else
                     mapChildren record.children
+
+        TextTag { text } ->
+            case selector of
+                ContainsText innerText ->
+                    if text == innerText then
+                        [ node ]
+                    else
+                        []
+
+                _ ->
+                    []
 
         _ ->
             []
@@ -109,12 +139,38 @@ predicateFromSelector selector =
         Attribute key value ->
             hasAttribute key value
 
+        BoolAttribute key value ->
+            hasBoolAttribute key value
+
+        ContainsText text ->
+            always False
+
+        Multiple selectors ->
+            hasAllSelectors selectors
+
+
+hasAllSelectors : List Selector -> NodeRecord -> Bool
+hasAllSelectors selectors record =
+    List.map predicateFromSelector selectors
+        |> List.map (\selector -> selector record)
+        |> List.all identity
+
 
 hasAttribute : String -> String -> NodeRecord -> Bool
 hasAttribute attribute query { facts } =
     case Dict.get attribute facts.stringOthers of
         Just id ->
             id == query
+
+        Nothing ->
+            False
+
+
+hasBoolAttribute : String -> Bool -> NodeRecord -> Bool
+hasBoolAttribute attribute value { facts } =
+    case Dict.get attribute facts.boolOthers of
+        Just id ->
+            id == value
 
         Nothing ->
             False
